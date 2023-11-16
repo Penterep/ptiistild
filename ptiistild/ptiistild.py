@@ -28,7 +28,7 @@ import validators
 
 from _version import __version__
 from ptlibs import ptprinthelper, ptjsonlib, ptnethelper, ptmisclib
-from ptthreads import ptthreads
+from ptlibs.threads import ptthreads
 
 
 class ptiistild:

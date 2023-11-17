@@ -21,7 +21,7 @@
 import argparse
 import sys; sys.path.append(__file__.rsplit("/", 1)[0])
 import re
-import time
+import urllib
 
 import requests
 import validators
@@ -64,13 +64,14 @@ class ptiistild:
         is_vulnerable = False
         vulnerable_methods = []
         results = {}
-        initial_r = requests.get(self.url, headers=self.headers, proxies=self.proxies, verify=False, allow_redirects=False)
-
+        initial_r = None
         for method in ["GET","DELETE", "PUT", "POST", "PATCH", "TRACE", "DEBUG", "HEAD", "OPTIONS"]:
             try:
+                if method == "GET":
+                    initial_r = requests.get(self.url, headers=self.headers, proxies=self.proxies, verify=False, allow_redirects=False)
                 r_1 = ptmisclib.load_url_from_web_or_temp(self.url + "*~1.*/.aspx", method, self.headers, self.proxies, None, self.timeout, False, False, self.cache, False)
                 r_2 = ptmisclib.load_url_from_web_or_temp(self.url + "foo*~1.*/.aspx", method, self.headers, self.proxies, None, self.timeout, False, False, self.cache, False)
-            except requests.exceptions.RequestException:
+            except requests.exceptions.RequestException as e:
                 self.ptjsonlib.end_ok("Error connecting to provided target", self.use_json)
             ptprinthelper.ptprint(f"\r{' '*(30+len(method))}\r[*] Testing method: {method}", "INFO", not self.use_json, end=f"")
             if r_1.status_code != r_2.status_code:
@@ -79,11 +80,10 @@ class ptiistild:
                 is_vulnerable = True
                 grab_method = method
                 self.ok_status_code = r_1.status_code
-
         ptprinthelper.ptprint(f"\r{' '*100}\r", "", not self.use_json, end="")
         for vuln_method in results:
             self.ptjsonlib.add_vulnerability(f"enumerable_method_{vuln_method}")
-            ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"Different status code for method {vuln_method} {' '*(7-len(vuln_method))} [{results[vuln_method]['r1_status']}] & [{results[vuln_method]['r2_status']}]", "INFO", self.use_json))
+            ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"Different status code for method {vuln_method} {' '*(8-len(vuln_method))} [{results[vuln_method]['r1_status']}] & [{results[vuln_method]['r2_status']}]", "INFO", self.use_json))
 
         ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"HTTP Header 'Server': {r_1.headers.get('Server', 'None')}", "INFO", self.use_json))
         if initial_r.is_redirect:
@@ -100,13 +100,16 @@ class ptiistild:
     def _grab_filenames(self):
         """Grabs/Bruteforces all the information"""
         ptprinthelper.ptprint(" ", " ", not self.use_json)
-        ptprinthelper.ptprint_(ptprinthelper.out_ifnot("Grabbing information", "INFO", self.use_json))
+        ptprinthelper.ptprint_(ptprinthelper.out_ifnot("Grabbing information", "TITLE", self.use_json))
         self.targets = [char for char in "abcdefghijklmnopqrstuvwxyz0123456789()-_ "]
         self.chars = [char for char in "abcdefghijklmnopqrstuvwxyz0123456789()-_ "]
         if self.specials:
             self.chars.extend([char for char in "!#$%&'()@^`{}"])
-        ptthreads_instance = ptthreads.ptthreads()
-        ptthreads_instance.threads(self.targets, self._grab_thread, self.threads)
+        try:
+            ptthreads_instance = ptthreads.PtThreads()
+            ptthreads_instance.threads(self.targets, self._grab_thread, self.threads)
+        except Exception as e:
+            print(e)
 
     def _grab_thread(self, target):
         """Grabbing used with threads"""
@@ -164,8 +167,9 @@ class ptiistild:
     def _check_filename(self, filename):
         """Checks if filename exists on url"""
         try:
-            response = requests.request(self.method, self.url+filename)
-        except requests.RequestException:
+            response = requests.request(self.method, self.url+filename, proxies=self.proxies, verify=False)
+        except requests.RequestException as e:
+            #print(e)
             return False
         if response.status_code == self.ok_status_code:
             return True
@@ -178,19 +182,24 @@ class ptiistild:
             self.targets.append(target+char)
 
     def _print_result(self):
-        ptprinthelper.ptprint(f"Found directories: {len(self.result['directories'])}", "TITLE", not self.use_json, newline_above=True, colortext=True)
-        ptprinthelper.ptprint_(ptprinthelper.out_ifnot('\n'.join(i for i in self.result["directories"].sort()), "", self.use_json))
-        ptprinthelper.ptprint(f"Found files: {len(self.result['files'])}", "TITLE", not self.use_json, newline_above=True, colortext=True)
-        ptprinthelper.ptprint_(ptprinthelper.out_ifnot('\n'.join(i for i in self.result["complete_files"].sort()), "", self.use_json))
-        ptprinthelper.ptprint_(ptprinthelper.out_ifnot('\n'.join(i for i in self.result["files"].sort()), "", self.use_json))
+        self.result["directories"].sort()
+        self.result["files"].sort()
+        self.result["complete_files"].sort()
+        if self.result.get("directories"):
+            ptprinthelper.ptprint(f"Found directories: {len(self.result['directories'])}", "TITLE", not self.use_json, newline_above=True, colortext=True)
+            ptprinthelper.ptprint_(ptprinthelper.out_ifnot('\n'.join(i for i in self.result["directories"]), "", self.use_json))
+        if self.result.get("files"):
+            ptprinthelper.ptprint(f"Found files: {len(self.result['files'])}", "TITLE", not self.use_json, newline_above=True, colortext=True)
+            ptprinthelper.ptprint_(ptprinthelper.out_ifnot('\n'.join(i for i in self.result["files"]), "", self.use_json))
+        if self.result.get("complete_files"):
+            ptprinthelper.ptprint_(ptprinthelper.out_ifnot('\n'.join(i for i in self.result["complete_files"]), "", self.use_json))
 
 
     def _adjust_url(self, url):
         if not (validators.url(url) and re.match("https?", url)):
-            self.ptjsonlib.end_error("Provided URL is not in valid format", self.use_json)
-        while url.endswith("/"): url = url[:1]
-        url += "/"
-        return url
+            self.ptjsonlib.end_error("Provided URL is not in valid format, only HTTP(S) protocol is supported", self.use_json)
+        parsed_url = urllib.parse.urlparse(url)
+        return urllib.parse.urlunparse(parsed_url._replace(path="/")) if not parsed_url.path else url
 
     def _get_urls_from_file(self, filepath):
         """Return list of URls from <filepath>"""
@@ -263,7 +272,6 @@ def main():
     global SCRIPTNAME
     SCRIPTNAME = "ptiistild"
     requests.packages.urllib3.disable_warnings()
-    requests.packages.urllib3.util.ssl_.DEFAULT_CIPHERS += ':HIGH:!DH:!aNULL'
     args = parse_args()
     script = ptiistild(args)
     script.run(args)

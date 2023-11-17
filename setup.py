@@ -21,7 +21,7 @@ setuptools.setup(
         "Topic :: Security",
         "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)"
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.9',
     install_requires=["ptlibs>=1,<2", "requests", "validators"],
     entry_points = {'console_scripts': ['ptiistild = ptiistild.ptiistild:main']},
     include_package_data= True,

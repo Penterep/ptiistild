@@ -27,8 +27,8 @@ source ~/.zshrc
 
 ## Usage examples
 ```
-ptiisdtild -u https://www.example.com/
-ptiisdtild -f url_list.txt
+ptiistild -u https://www.example.com/
+ptiistild -f url_list.txt
 ```
 
 ## Options
@@ -58,6 +58,9 @@ ptlibs
 
 ## Version History
 ```
+1.0.2
+    - added error catching
+    - other small improvements
 1.0.0 - 1.0.1
     - Script improvements
     - Updated for latest ptlibs

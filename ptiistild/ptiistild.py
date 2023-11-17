@@ -64,11 +64,15 @@ class ptiistild:
         is_vulnerable = False
         vulnerable_methods = []
         results = {}
-        for method in ["DELETE", "PUT", "POST", "GET", "PATCH", "TRACE", "DEBUG", "HEAD", "OPTIONS"]:
-            ptprinthelper.ptprint(f"\r{' '*(30+len(method))}\r[*] Testing method: {method}", "INFO", not self.use_json, end=f"")
+        initial_r = requests.get(self.url, headers=self.headers, proxies=self.proxies, verify=False, allow_redirects=False)
 
-            r_1 = ptmisclib.load_url_from_web_or_temp(self.url + "*~1.*/.aspx", method, self.headers, self.proxies, None, self.timeout, False, False, self.cache, False)
-            r_2 = ptmisclib.load_url_from_web_or_temp(self.url + "foo*~1.*/.aspx", method, self.headers, self.proxies, None, self.timeout, False, False, self.cache, False)
+        for method in ["GET","DELETE", "PUT", "POST", "PATCH", "TRACE", "DEBUG", "HEAD", "OPTIONS"]:
+            try:
+                r_1 = ptmisclib.load_url_from_web_or_temp(self.url + "*~1.*/.aspx", method, self.headers, self.proxies, None, self.timeout, False, False, self.cache, False)
+                r_2 = ptmisclib.load_url_from_web_or_temp(self.url + "foo*~1.*/.aspx", method, self.headers, self.proxies, None, self.timeout, False, False, self.cache, False)
+            except requests.exceptions.RequestException:
+                self.ptjsonlib.end_ok("Error connecting to provided target", self.use_json)
+            ptprinthelper.ptprint(f"\r{' '*(30+len(method))}\r[*] Testing method: {method}", "INFO", not self.use_json, end=f"")
             if r_1.status_code != r_2.status_code:
                 results.update({method: {"r1_status": r_1.status_code, "r2_status": r_2.status_code} })
                 vulnerable_methods.append(method)
@@ -76,19 +80,22 @@ class ptiistild:
                 grab_method = method
                 self.ok_status_code = r_1.status_code
 
-        ptprinthelper.ptprint(f"\r{' '*100}\r\n", "", not self.use_json, end="")
+        ptprinthelper.ptprint(f"\r{' '*100}\r", "", not self.use_json, end="")
         for vuln_method in results:
             self.ptjsonlib.add_vulnerability(f"enumerable_method_{vuln_method}")
-            ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"Different status codes for method {vuln_method} [{results[vuln_method]['r1_status']}] & [{results[vuln_method]['r2_status']}]", "INFO", self.use_json))
+            ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"Different status code for method {vuln_method} {' '*(7-len(vuln_method))} [{results[vuln_method]['r1_status']}] & [{results[vuln_method]['r2_status']}]", "INFO", self.use_json))
 
+        ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"HTTP Header 'Server': {r_1.headers.get('Server', 'None')}", "INFO", self.use_json))
+        if initial_r.is_redirect:
+            ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"Found redirects, try connecting to {initial_r.headers['location']} for different result", "INFO", self.use_json))
         ptprinthelper.ptprint(" ", " ", not self.use_json)
-        ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"HTTP Header 'Server' response: {r_1.headers.get('Server', 'None')}\n", "INFO", self.use_json))
+
         if is_vulnerable:
             self.ptjsonlib.add_vulnerability("PTIISTILD", None, None)
             ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"{self.url} is vulnerable to IIS Tilde Enumeration", "VULN", self.use_json))
             return grab_method
         else:
-            ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"{self.url} not vulnerable to IIS Tilde Enumeration", "NOTVULN", self.use_json))
+            ptprinthelper.ptprint_(ptprinthelper.out_ifnot(f"{self.url} is not vulnerable to IIS Tilde Enumeration", "NOTVULN", self.use_json))
 
     def _grab_filenames(self):
         """Grabs/Bruteforces all the information"""

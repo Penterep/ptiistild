@@ -27,4 +27,7 @@ setuptools.setup(
     include_package_data= True,
     long_description=long_description,
     long_description_content_type="text/markdown",
+        project_urls = {
+        "Source": "https://github.com/Penterep/ptiistild",
+    }
 )
